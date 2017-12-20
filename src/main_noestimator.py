@@ -8,6 +8,8 @@ steps=100
 src.produce_data.write_train_data(steps)
 src.produce_data.write_test_data(steps)
 
+
+
 dft=pd.DataFrame.from_csv("../input/train_data.csv")
 dfts=pd.DataFrame.from_csv("../input/test_data.csv")
 

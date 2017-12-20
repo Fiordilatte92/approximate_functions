@@ -1,6 +1,5 @@
-import pandas as pd
 import numpy as np
+import tensorflow as tf
 
-x=np.random.standard_normal(5)
-y=pd.DataFrame({"lol": x},)
-print(y)
+training_set = tf.contrib.learn.datasets.base.load_csv_with_header(
+    filename="../input/train_data.csv", target_dtype=np.float32, features_dtype=np.float32)

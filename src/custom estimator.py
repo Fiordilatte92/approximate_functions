@@ -3,9 +3,10 @@ import pandas as pd
 import tensorflow as tf
 import plotly as py
 import plotly.graph_objs as go
+import numpy as np
 
 
-steps= 100
+steps= 400
 LEARNING_RATE=0.001
 NUM_EPOCHS=2000
 model_params = {"learning_rate": LEARNING_RATE}
@@ -15,22 +16,32 @@ model_params = {"learning_rate": LEARNING_RATE}
 src.produce_data.write_train_data(steps)
 src.produce_data.write_test_data(steps)
 
-dft=pd.DataFrame.from_csv("../input/train_data.csv")
+dft=pd.read_csv("../input/train_data.csv" ,header=0, names=["x1","x2","tar"]  , index_col=None)
+dft_x=dft.filter(items=['x1', 'x2'])
 dfts=pd.DataFrame.from_csv("../input/test_data.csv")
 
 
 #input train data
 
-train_input_fn = tf.estimator.inputs.pandas_input_fn(
-    x=dft,
-    y=dft.y,
+training_set = tf.contrib.learn.datasets.base.load_csv_with_header(
+    filename="../input/train_data.csv", target_dtype=np.float32, features_dtype=np.float32)
+
+train_input_fn2 = tf.estimator.inputs.numpy_input_fn(
+    x={"x": np.array(training_set.data)},
+    y=np.array(training_set.target),
     shuffle=True,
     num_epochs=NUM_EPOCHS)
-test_input_fn = tf.estimator.inputs.pandas_input_fn(
-    x=dfts,
-    y=dfts.y,
-    shuffle=False,
-    num_epochs=NUM_EPOCHS)
+
+# train_input_fn = tf.estimator.inputs.pandas_input_fn(
+#     x=dft_x,
+#     y=dft.y,
+#     shuffle=True,
+#     num_epochs=NUM_EPOCHS)
+# test_input_fn = tf.estimator.inputs.pandas_input_fn(
+#     x=dfts,
+#     y=dfts.y,
+#     shuffle=False,
+#     num_epochs=NUM_EPOCHS)
 
 
 def model_fn(features, labels, mode, params):
@@ -38,11 +49,12 @@ def model_fn(features, labels, mode, params):
 
     # Connect the first hidden layer to input layer
     # (features["x"]) with relu activation
-    first_hidden_layer = tf.layers.dense(tf.reshape(features["x"],shape=[-1,1]), 30, activation=tf.nn.relu)
+
+    #first_hidden_layer = tf.layers.dense(input_layer, 30, activation=tf.nn.relu)
+    first_hidden_layer = tf.layers.dense(tf.reshape(features["x"],shape=[-1,2]), 30, activation=tf.nn.relu)
 
     # Connect the second hidden layer to first hidden layer with relu
-    second_hidden_layer = tf.layers.dense(
-        first_hidden_layer, 20, activation=tf.nn.relu)
+    second_hidden_layer = tf.layers.dense(first_hidden_layer, 20, activation=tf.nn.relu)
 
     # Connect the output layer to second hidden layer (no activation fn)
     output_layer = tf.layers.dense(second_hidden_layer, 1)
@@ -62,7 +74,7 @@ def model_fn(features, labels, mode, params):
     # Calculate root mean squared error as additional eval metric
     eval_metric_ops = {
         "rmse": tf.metrics.root_mean_squared_error(
-            tf.cast(labels, tf.float64), predictions)
+            tf.cast(labels, tf.float32), predictions)
     }
 
     #optimizer = tf.train.GradientDescentOptimizer(
@@ -82,25 +94,29 @@ def model_fn(features, labels, mode, params):
         eval_metric_ops=eval_metric_ops)
 
 nn=tf.estimator.Estimator(model_fn=model_fn, params=model_params )
-nn.train(input_fn=train_input_fn, steps=None)
-ev=nn.evaluate(input_fn=test_input_fn)
-pre=nn.predict(input_fn=test_input_fn)
+nn.train(input_fn=train_input_fn2, steps=None)
+ev= nn.evaluate(input_fn=train_input_fn2)
+print(ev)
+
+pre=nn.predict(input_fn=train_input_fn2)
 
 def predict():
-    yp = nn.predict(input_fn=test_input_fn)
+    yp = nn.predict(input_fn=train_input_fn2)
     yp_ = list(yp)
     y_pred=[]
     for i in range(steps):
         y_pred.append(float(yp_[i]['approx']))
     return y_pred
 
-trace0 = go.Scatter( x= dft.x,
-                     y= dft.y,
-                     mode='markers')
-trace1 = go.Scatter( x= dfts.x,
-                     y= predict(),
-                     mode='markers')
-data=[trace0, trace1]
+real_data = go.Scatter3d(x= dft.x1,
+                         y= dft.x2,
+                         z=dft.tar,
+                         mode='markers')
+pred_data = go.Scatter3d(x= dft.x1,
+                       y=dft.x2,
+                       z= predict(),
+                       mode='markers')
+data=[real_data, pred_data]
 py.offline.plot(data, filename='lel')
 
 
