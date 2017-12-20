@@ -7,7 +7,7 @@ import numpy as np
 
 
 steps= 400
-LEARNING_RATE=0.001
+LEARNING_RATE=0.01
 NUM_EPOCHS=2000
 model_params = {"learning_rate": LEARNING_RATE}
 
@@ -31,6 +31,11 @@ train_input_fn2 = tf.estimator.inputs.numpy_input_fn(
     y=np.array(training_set.target),
     shuffle=True,
     num_epochs=NUM_EPOCHS)
+test_input_fn2 = tf.estimator.inputs.numpy_input_fn(
+    x={"x": np.array(training_set.data)},
+    y=np.array(training_set.target),
+    shuffle=False,
+    )
 
 # train_input_fn = tf.estimator.inputs.pandas_input_fn(
 #     x=dft_x,
@@ -51,10 +56,10 @@ def model_fn(features, labels, mode, params):
     # (features["x"]) with relu activation
 
     #first_hidden_layer = tf.layers.dense(input_layer, 30, activation=tf.nn.relu)
-    first_hidden_layer = tf.layers.dense(tf.reshape(features["x"],shape=[-1,2]), 30, activation=tf.nn.relu)
+    first_hidden_layer = tf.layers.dense(tf.reshape(features["x"],shape=[-1,2]), 40, activation=tf.nn.relu)
 
     # Connect the second hidden layer to first hidden layer with relu
-    second_hidden_layer = tf.layers.dense(first_hidden_layer, 20, activation=tf.nn.relu)
+    second_hidden_layer = tf.layers.dense(first_hidden_layer, 30, activation=tf.nn.relu)
 
     # Connect the output layer to second hidden layer (no activation fn)
     output_layer = tf.layers.dense(second_hidden_layer, 1)
@@ -66,7 +71,7 @@ def model_fn(features, labels, mode, params):
     if mode == tf.estimator.ModeKeys.PREDICT:
         return tf.estimator.EstimatorSpec(
             mode=mode,
-            predictions={"approx": predictions})
+            predictions=predictions)
 
     # Calculate loss using mean squared error
     loss = tf.losses.mean_squared_error(labels, predictions)
@@ -95,18 +100,17 @@ def model_fn(features, labels, mode, params):
 
 nn=tf.estimator.Estimator(model_fn=model_fn, params=model_params )
 nn.train(input_fn=train_input_fn2, steps=None)
-ev= nn.evaluate(input_fn=train_input_fn2)
-print(ev)
+ev= nn.evaluate(input_fn=test_input_fn2)
 
-pre=nn.predict(input_fn=train_input_fn2)
-
-def predict():
-    yp = nn.predict(input_fn=train_input_fn2)
-    yp_ = list(yp)
-    y_pred=[]
-    for i in range(steps):
-        y_pred.append(float(yp_[i]['approx']))
-    return y_pred
+pre=nn.predict(input_fn=test_input_fn2)
+pred= [ p for p in pre]
+# def predict():
+#     yp = nn.predict(input_fn=train_input_fn2)
+#     yp_ = list(yp)
+#     y_pred=[]
+#     for i in range(steps):
+#         y_pred.append(float(yp_[i]['approx']))
+#     return y_pred
 
 real_data = go.Scatter3d(x= dft.x1,
                          y= dft.x2,
@@ -114,11 +118,14 @@ real_data = go.Scatter3d(x= dft.x1,
                          mode='markers')
 pred_data = go.Scatter3d(x= dft.x1,
                        y=dft.x2,
-                       z= predict(),
+                       z= pred,
                        mode='markers')
 data=[real_data, pred_data]
-py.offline.plot(data, filename='lel')
+py.offline.plot(data, filename='lel.html')
 
 
+l = abs(dft.tar.values - pred)
+l= np.sqrt(np.sum([x*x for x in l]))
+print("manual loss %s" % l)
 print("Loss: %s" % ev["loss"])
 print("Root Mean Squared Error: %s" % ev["rmse"])
